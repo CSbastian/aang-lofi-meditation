@@ -33,27 +33,13 @@ COLOR_TORCH = np.array([200, 120, 30, 255], dtype=np.uint8)
 
 
 def _force_vec3_color(graph: Scenegraph, mesh_name: str, force_color: np.ndarray) -> None:
-    """Reescribe el atributo ``color`` de una malla a 3 componentes (RGB).
+    """No-op: el shader ahora acepta ``in vec4 color`` (4 componentes).
 
     El loader de ``.off`` produce un color RGBA (4 componentes por vértice)
-    pero el shader de iluminación declara ``in vec3 color``. Esta función
-    aplana el buffer y lo rellena con ``force_color[:3]`` para que el
-    formato del atributo coincida con lo que espera el shader.
+    que coincide con el shader adaptado. Esta función se mantiene como
+    stub por compatibilidad pero ya no modifica el buffer.
     """
-    if mesh_name not in graph.meshes:
-        return
-    children = graph.meshes[mesh_name].get("children", [])
-    if not children:
-        return
-    color_attr = children[0]["attributes"].get("color")
-    if color_attr is None or color_attr.size % 4 != 0:
-        return
-    n_v = color_attr.size // 4
-    colors_rgb = np.empty((n_v, 3), dtype=np.uint8)
-    colors_rgb[:, 0] = force_color[0]
-    colors_rgb[:, 1] = force_color[1]
-    colors_rgb[:, 2] = force_color[2]
-    children[0]["attributes"]["color"] = colors_rgb.flatten()
+    pass
 
 
 def _add_env_object(

@@ -68,32 +68,13 @@ THRONE_TRANSLATE = np.array([0.0, 0.3, -3.0], dtype=np.float32)
 # Helpers
 # --------------------------------------------------------------------------- #
 def _strip_color_alpha(graph, mesh_name, force_color):
+    """No-op stub. El shader adaptado declara ``in vec4 color`` y acepta
+    directamente el buffer RGBA (4 componentes) que produce
+    ``_node_from_mesh`` al usar ``force_color``. No es necesario reescribir
+    el buffer. Se conserva la firma por compatibilidad con el codigo de
+    construccion del rig.
     """
-    After ``load_and_register_mesh(..., force_color=...)`` the registered
-    ``children[0]['attributes']['color']`` is a 4-component buffer
-    (RGBA, ``c4B``), but our vertex shader declares ``in vec3 color``.
-    We rewrite that buffer to a flat 3-component (RGB) array with the
-    requested color so the GPU upload size matches the shader input.
-
-    Mirrors the workaround in ``test_shader.py`` lines 162-172.
-    """
-    if mesh_name not in graph.meshes:
-        return
-    children = graph.meshes[mesh_name].get("children", [])
-    if not children:
-        return
-    color_attr = children[0].get("attributes", {}).get("color")
-    if color_attr is None:
-        return
-    # 4-component RGBA buffer: size is a multiple of 4
-    if color_attr.size % 4 != 0:
-        return
-    n_v = color_attr.size // 4
-    rgb = np.empty((n_v, 3), dtype=np.uint8)
-    rgb[:, 0] = force_color[0]
-    rgb[:, 1] = force_color[1]
-    rgb[:, 2] = force_color[2]
-    children[0]["attributes"]["color"] = rgb.flatten()
+    return
 
 
 def _add_limb(graph, pipeline_name, *, parent, joint_name, joint_transform,
