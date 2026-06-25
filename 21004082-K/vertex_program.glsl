@@ -1,7 +1,7 @@
 #version 330 core
         
 in vec3 position;
-in vec4 color;
+in vec3 color;
 in vec3 normal;
 
 out vec3 fragPosition;
@@ -15,7 +15,7 @@ uniform mat4 projection;
 void main(){
 
     fragPosition = vec3(transform * vec4(position, 1.0));
-    fragOriginalColor = color.rgb;
+    fragOriginalColor = color;
     fragNormal = mat3(transpose(inverse(transform))) * normal;
     gl_Position = projection * view * vec4(fragPosition, 1.0);
 

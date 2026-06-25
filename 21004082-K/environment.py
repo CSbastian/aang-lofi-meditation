@@ -33,13 +33,31 @@ COLOR_TORCH = np.array([200, 120, 30, 255], dtype=np.uint8)
 
 
 def _force_vec3_color(graph: Scenegraph, mesh_name: str, force_color: np.ndarray) -> None:
-    """No-op: el shader ahora acepta ``in vec4 color`` (4 componentes).
+    """Reescribe el atributo ``color`` a 3 componentes (float32) para
+    que coincida con el input ``in vec3 color`` del vertex shader.
 
-    El loader de ``.off`` produce un color RGBA (4 componentes por vértice)
-    que coincide con el shader adaptado. Esta función se mantiene como
-    stub por compatibilidad pero ya no modifica el buffer.
+    El loader de ``.off`` produce un buffer RGBA uint8 (4 bytes por
+    vértice). El buffer GPU para ``vec3 color`` espera 3 floats por
+    vértice (12 bytes). Sin esta conversion, la asignacion
+    ``color[:] = data`` falla por mismatch de tamano.
+
+    Convierte a float32 normalizado [0,1] para que coincida con el
+    formato GL_FLOAT del vertex buffer.
     """
-    pass
+    if mesh_name not in graph.meshes:
+        return
+    children = graph.meshes[mesh_name].get("children", [])
+    if not children:
+        return
+    color_attr = children[0]["attributes"].get("color")
+    if color_attr is None or color_attr.size % 4 != 0:
+        return
+    n_v = color_attr.size // 4
+    colors_rgb = np.empty((n_v, 3), dtype=np.float32)
+    colors_rgb[:, 0] = force_color[0] / 255.0
+    colors_rgb[:, 1] = force_color[1] / 255.0
+    colors_rgb[:, 2] = force_color[2] / 255.0
+    children[0]["attributes"]["color"] = colors_rgb.flatten()
 
 
 def _add_env_object(

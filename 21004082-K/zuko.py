@@ -121,13 +121,27 @@ def _record_originals(graph: Scenegraph) -> None:
 # Helpers
 # --------------------------------------------------------------------------- #
 def _strip_color_alpha(graph, mesh_name, force_color):
-    """No-op stub. El shader adaptado declara ``in vec4 color`` y acepta
-    directamente el buffer RGBA (4 componentes) que produce
-    ``_node_from_mesh`` al usar ``force_color``. No es necesario reescribir
-    el buffer. Se conserva la firma por compatibilidad con el codigo de
-    construccion del rig.
+    """Reescribe el atributo ``color`` a 3 componentes (float32) para
+    que coincida con el input ``in vec3 color`` del vertex shader.
+
+    El loader de ``.off`` produce un buffer RGBA uint8 (4 bytes por
+    vertice). El buffer GPU para ``vec3 color`` espera 3 floats por
+    vertice (12 bytes). Convierte a float32 normalizado [0,1].
     """
-    return
+    if mesh_name not in graph.meshes:
+        return
+    children = graph.meshes[mesh_name].get("children", [])
+    if not children:
+        return
+    color_attr = children[0].get("attributes", {}).get("color")
+    if color_attr is None or color_attr.size % 4 != 0:
+        return
+    n_v = color_attr.size // 4
+    rgb = np.empty((n_v, 3), dtype=np.float32)
+    rgb[:, 0] = force_color[0] / 255.0
+    rgb[:, 1] = force_color[1] / 255.0
+    rgb[:, 2] = force_color[2] / 255.0
+    children[0]["attributes"]["color"] = rgb.flatten()
 
 
 # --------------------------------------------------------------------------- #
