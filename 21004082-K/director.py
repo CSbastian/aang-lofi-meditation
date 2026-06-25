@@ -39,8 +39,8 @@ import numpy as np
 # ---------------------------------------------------------------------------
 # Sibling-module imports (no os.path juggling — see "MUST NOT DO")
 # ---------------------------------------------------------------------------
-from camera import get_camera, SHOTS as CAMERA_SHOTS
-from lighting import (
+from .camera import get_camera, SHOTS as CAMERA_SHOTS
+from .lighting import (
     POINT_LIGHT_DEFAULTS,
     SPOTLIGHT_LEFT_DEFAULTS,
     SPOTLIGHT_RIGHT_DEFAULTS,
@@ -55,7 +55,7 @@ from lighting import (
 # zuko.py and ozai.py are separate tasks (7 and 8) and may not exist yet.
 # We provide a no-op fallback so the director is importable in isolation.
 try:
-    from zuko import apply_zuko_pose as _zuko_apply_raw  # type: ignore
+    from .zuko import apply_zuko_pose as _zuko_apply_raw  # type: ignore
 except ImportError:
     def _zuko_apply_raw(graph, pose_dict):  # type: ignore
         """Fallback no-op used when ``zuko.py`` is not yet available."""
@@ -63,7 +63,7 @@ except ImportError:
 
 
 try:
-    from ozai import apply_ozai_pose as _ozai_apply_raw  # type: ignore
+    from .ozai import apply_ozai_pose as _ozai_apply_raw  # type: ignore
 except ImportError:
     def _ozai_apply_raw(graph, pose_dict):  # type: ignore
         """Fallback no-op used when ``ozai.py`` is not yet available."""

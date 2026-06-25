@@ -107,6 +107,7 @@ def build_environment(graph: Scenegraph, pipeline_name: str) -> None:
     # 2. Nodo transform "environment" (padre de todos los componentes)
     # -------------------------------------------------------------- #
     graph.add_transform("environment", tr.identity())
+    graph.add_edge(graph.root_key, "environment")
 
     # -------------------------------------------------------------- #
     # 3. Piso

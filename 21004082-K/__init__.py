@@ -36,11 +36,11 @@ from OpenGL import GL
 from grafica.scenegraph import Scenegraph
 
 # Módulos hermanos del paquete 21004082-K
-from camera import get_camera
-from environment import build_environment
-from zuko import build_zuko
-from ozai import build_ozai
-from director import update_scene, update_lighting_pipeline
+from .camera import get_camera
+from .environment import build_environment
+from .zuko import build_zuko
+from .ozai import build_ozai
+from .director import update_scene, update_lighting_pipeline
 
 
 # ---------------------------------------------------------------------------
