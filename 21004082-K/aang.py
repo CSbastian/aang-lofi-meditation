@@ -90,13 +90,8 @@ HEAD_Z_DEG = 0.0                # head tilt (Z, positive = tilt right)
 HAND_CLOSURE_DEG = 0
 EYE_CLOSURE_DEG = 56.0
 
-# Breathing animation
-BREATH_AMPLITUDE_DEG = 1.15      # spine rotation amplitude
-BREATH_FREQ_HZ = 0.5             # breaths per second (0.5 = 2-sec cycle)
-WIND_AMPLITUDE_DEG = 4.6         # cape wind amplitude
-WIND_FREQ_HZ = 0.3               # wind frequency
-WIND_PHASE_OFFSET = 0.8          # phase offset between cape joints
-HEAD_TILT_STATIC_DEG = -5.7      # static head tilt in breathing anim (X axis)
+# Animaciones procedurales (respiracion, viento, cabeza):
+# ver constantes y helpers justo antes de apply_breathing_and_wind().
 
 
 def gather_skinned_primitives_data(model):
@@ -209,70 +204,208 @@ def setup_aang(model_path, skinning_pipeline):
     }
 
 
-def apply_breathing_and_wind(aang_data, time, first_call=False):
-    """
-    Aplica animacion procedural a la jerarquia de joints de Aang:
-    - Respiracion: rotacion sinusoidal sutil en la espina (eje X)
-    - Viento de la capa: rotacion ondulante en las joints de la capa
-    - Inclinacion de la cabeza: rotacion fija hacia abajo (solo primer call)
+# ---------------------------------------------------------------------------
+# Animaciones procedurales — knobs editables
+# ---------------------------------------------------------------------------
+# Cada animacion de joint se describe con un "JointAnim" (dict que devuelve
+# make_joint_anim). Esto te da control fino sobre:
+#
+#   * rot_axis      : 'X' / 'Y' / 'Z' / None. Eje LOCAL de rotacion del
+#                     joint. None desactiva la rotacion.
+#                     Convencion GLTF (Y-up, hueso apuntando al hijo):
+#                       - X local de un hueso de la espina = derecha del
+#                         cuerpo -> rotacion X = inclinar adelante/atras.
+#                       - Y local = a lo largo del hueso -> rotacion Y =
+#                         torsion axial (raro para respirar).
+#                       - Z local = adelante del cuerpo -> rotacion Z =
+#                         doblar al lado.
+#   * rot_amp_deg   : amplitud PICO de la rotacion (grados, con signo).
+#                     En cada frame: rot_axis(amp * sin(2*pi*freq*fm*t + ph))
+#   * trans_local   : tupla (tx, ty, tz) de amplitudes de TRASLACION LOCAL
+#                     (en el marco del joint, NO en mundo). Cada componente
+#                     es amplitud pico en unidades de modelo.
+#                     Para los huesos de la espina, +Y local apunta a lo
+#                     largo del hueso (hacia la cabeza), asi que ty > 0
+#                     hace que el joint "suba" en mundo = el pecho sube.
+#                     Pasa None para desactivar traslacion.
+#   * trans_phase   : offset de fase (radianes) para la traslacion.
+#   * freq_hz_mult  : multiplicador sobre la frecuencia global del grupo.
+#                     1.0 = usa la freq del grupo; 2.0 = doble; 0.5 = mitad.
+#
+# Cada frame se sobreescribe el transform del joint desde base_transforms
+# (la pose de descanso del GLTF), asi que las oscilaciones NO se acumulan:
+# siempre vuelven al origen si paras el tiempo.
+# ---------------------------------------------------------------------------
 
-    Cada frame sobreescribe los transforms desde base_transforms, asi que
-    NO hay acumulacion: las oscilaciones vuelven al origen en cada llamada.
+
+def make_joint_anim(joint_index, rot_axis=None, rot_amp_deg=0.0, rot_phase=0.0,
+                    trans_local=None, trans_phase=0.0, freq_hz_mult=1.0):
+    """Crea un spec de animacion para un joint.
 
     Args:
-        aang_data: dict retornado por setup_aang()
-        time: tiempo de animacion actual en segundos
-        first_call: si True, aplica la inclinacion estatica de la cabeza
+        joint_index: indice del joint en la jerarquia GLTF (0-based).
+        rot_axis: 'X', 'Y', 'Z' o None.
+        rot_amp_deg: amplitud pico de rotacion en grados (con signo).
+        rot_phase: offset de fase para la rotacion (radianes).
+        trans_local: tupla (tx, ty, tz) o None.
+        trans_phase: offset de fase para la traslacion (radianes).
+        freq_hz_mult: multiplicador de la frecuencia global.
+    """
+    if trans_local is not None:
+        trans_local = np.array(trans_local, dtype=np.float32)
+    return {
+        "joint_index": int(joint_index),
+        "rot_axis": rot_axis,
+        "rot_amp_deg": float(rot_amp_deg),
+        "rot_phase": float(rot_phase),
+        "trans_local": trans_local,
+        "trans_phase": float(trans_phase),
+        "freq_hz_mult": float(freq_hz_mult),
+    }
+
+
+# --- Respiracion (espina, joints 8..12) ---
+# Por defecto: traslacion +Y local en cada vertebra, con amplitud
+# PROGRESIVA de abajo hacia arriba. Esto eleva el pecho y la cabeza
+# en cada inspiracion — como se ve una respiracion real (pecho sube).
+# Si queres que el pecho se incline un poco hacia adelante en vez de
+# trasladarse, comenta las lineas trans_local y descomenta rot_axis='X'.
+# Si el pecho se mueve "hacia los lados" en vez de arriba/abajo,
+# prueba trans_local=(0, 0, ty) (eje Z) o (tx, 0, 0) (eje X).
+BREATH_FREQ_HZ = 0.5  # una respiracion completa cada 2 segundos (lenta, zen)
+
+SPINE_ANIMATIONS = [
+    # joint 8: lumbar bajo (apenas se mueve)
+    make_joint_anim(8,  trans_local=(0.0, 0.003, 0.0)),
+    # joint 9: lumbar alto
+    make_joint_anim(9,  trans_local=(0.0, 0.008, 0.0)),
+    # joint 10: dorsal bajo (el pecho empieza a subir)
+    make_joint_anim(10, trans_local=(0.0, 0.015, 0.0)),
+    # joint 11: dorsal alto (el pecho sube)
+    make_joint_anim(11, trans_local=(0.0, 0.022, 0.0)),
+    # joint 12: cuello bajo (cabeza sube con el pecho)
+    make_joint_anim(12, trans_local=(0.0, 0.028, 0.0)),
+]
+
+
+# --- Viento de la capa (joints 14..17) ---
+# Por defecto: rotacion en X local de cada joint de la capa, con
+# amplitudes y fases progresivas joint por joint -> onda de viento.
+# +X local de los joints de la capa suele apuntar hacia adelante del
+# cuerpo, asi que rotacion X = paneo adelante/atras de la capa.
+# Si la capa se mueve "para los lados" en vez de "para adelante/atras",
+# prueba rot_axis='Z'. Si se "enrolla" raro, prueba rot_axis='Y'.
+WIND_FREQ_HZ = 0.3  # viento suave, ciclo de ~3.3s
+
+CAPE_ANIMATIONS = [
+    make_joint_anim(14, rot_axis="X", rot_amp_deg=2.0, rot_phase=0.0),
+    make_joint_anim(15, rot_axis="X", rot_amp_deg=2.5, rot_phase=0.8),
+    make_joint_anim(16, rot_axis="X", rot_amp_deg=3.0, rot_phase=1.6),
+    make_joint_anim(17, rot_axis="X", rot_amp_deg=3.5, rot_phase=2.4),
+]
+
+
+# --- Cabeza: inclinacion estatica hacia abajo (mirada meditativa) ---
+# Se aplica UNA vez (en el primer frame) como una rotacion CONSTANTE.
+# Para eliminar la inclinacion: pon rot_amp_deg=0.0.
+# Para invertir el sentido: cambia el signo de rot_amp_deg.
+HEAD_ANIMATION = make_joint_anim(20, rot_axis="X", rot_amp_deg=-5.7)
+
+
+# Alias de compatibilidad (mantenidos por si algun script externo los usa).
+BREATH_AMPLITUDE_DEG = 1.15
+WIND_AMPLITUDE_DEG = 4.6
+WIND_PHASE_OFFSET = 0.8
+HEAD_TILT_STATIC_DEG = -5.7
+
+
+def _axis_rotation(axis, angle):
+    """Devuelve la matriz de rotacion para el eje local dado ('X'/'Y'/'Z')."""
+    if axis == "X":
+        return tr.rotationX(angle)
+    if axis == "Y":
+        return tr.rotationY(angle)
+    if axis == "Z":
+        return tr.rotationZ(angle)
+    raise ValueError(f"rot_axis invalido: {axis!r} (usa 'X', 'Y' o 'Z')")
+
+
+def _compose_anim(base, anim, time, freq):
+    """Compone rotacion + traslacion animada sobre el transform base.
+
+    Composicion: ``new = base @ trans @ rot`` (todo en marco local del
+    joint). Devuelve la matriz local lista para asignar al nodo.
+    """
+    freq_mult = anim["freq_hz_mult"]
+
+    rot = tr.identity()
+    rot_axis = anim["rot_axis"]
+    if rot_axis is not None and anim["rot_amp_deg"] != 0.0:
+        amp = math.radians(anim["rot_amp_deg"])
+        angle = amp * math.sin(2 * math.pi * freq * freq_mult * time + anim["rot_phase"])
+        rot = _axis_rotation(rot_axis, angle)
+
+    trans = tr.identity()
+    trans_local = anim["trans_local"]
+    if trans_local is not None and np.any(trans_local != 0):
+        t_vec = trans_local * math.sin(
+            2 * math.pi * freq * freq_mult * time + anim["trans_phase"]
+        )
+        trans = tr.translate(float(t_vec[0]), float(t_vec[1]), float(t_vec[2]))
+
+    return base @ trans @ rot
+
+
+def apply_breathing_and_wind(aang_data, time, first_call=False):
+    """Aplica las animaciones procedurales sobre la jerarquia de Aang.
+
+    Recorre las listas editables ``SPINE_ANIMATIONS`` y ``CAPE_ANIMATIONS``
+    y aplica cada spec sobre el joint correspondiente, sobreescribiendo
+    el transform desde ``base_transforms`` (la pose de descanso del
+    GLTF). No hay acumulacion: cada frame parte del reposo.
+
+    La cabeza (``HEAD_ANIMATION``) se aplica SOLO en el primer frame
+    como rotacion constante.
+
+    Args:
+        aang_data: dict retornado por ``setup_aang()``.
+        time: tiempo de animacion en segundos.
+        first_call: si True, aplica la inclinacion estatica de la cabeza.
     """
     graph = aang_data["graph"]
     base_transforms = aang_data["base_transforms"]
     n2s = aang_data["node_to_scenegraph_name"]
 
-    # Respiracion: joints de la espina rotan suavemente en X
-    # Indices 8..12 mapean a la cadena de la espina en el GLTF
-    breath_amplitude = math.radians(BREATH_AMPLITUDE_DEG)
-    breath_freq = BREATH_FREQ_HZ
-    breath = breath_amplitude * math.sin(2 * math.pi * breath_freq * time)
-
-    spine_indices = [8, 9, 10, 11, 12]
-    for idx in spine_indices:
+    def _apply(anim, freq):
+        idx = anim["joint_index"]
         if idx >= len(n2s):
-            continue
+            return
         node_name = n2s[idx]
         if node_name not in base_transforms:
-            continue
-        base = base_transforms[node_name]
-        graph.nodes[node_name]["transform"] = base @ tr.rotationX(breath)
+            return
+        graph.nodes[node_name]["transform"] = _compose_anim(
+            base_transforms[node_name], anim, time, freq
+        )
 
-    # Viento de la capa: cada joint de la capa tiene fase propia para
-    # generar efecto de onda. Rotacion en Z (planeo lateral del pano).
-    wind_amplitude = math.radians(WIND_AMPLITUDE_DEG)
-    wind_freq = WIND_FREQ_HZ
+    for anim in SPINE_ANIMATIONS:
+        _apply(anim, BREATH_FREQ_HZ)
+    for anim in CAPE_ANIMATIONS:
+        _apply(anim, WIND_FREQ_HZ)
 
-    cape_indices = [14, 15, 16, 17]
-    for i, idx in enumerate(cape_indices):
-        if idx >= len(n2s):
-            continue
-        node_name = n2s[idx]
-        if node_name not in base_transforms:
-            continue
-        base = base_transforms[node_name]
-        phase_offset = i * WIND_PHASE_OFFSET
-        wind = wind_amplitude * math.sin(2 * math.pi * wind_freq * time + phase_offset)
-        graph.nodes[node_name]["transform"] = base @ tr.rotationZ(wind)
-
-    # Inclinacion de la cabeza: rotacion fija hacia abajo (~6 grados).
-    # Solo se aplica en la primera llamada; en frames siguientes la
-    # respiracion/espalda se sobreescriben pero la cabeza queda fija
-    # porque su transform no se toca en el bucle de arriba.
     if first_call:
-        head_idx = 20
-        if head_idx < len(n2s):
-            node_name = n2s[head_idx]
+        anim = HEAD_ANIMATION
+        idx = anim["joint_index"]
+        if idx < len(n2s):
+            node_name = n2s[idx]
             if node_name in base_transforms:
-                base = base_transforms[node_name]
-                head_tilt = tr.rotationX(math.radians(HEAD_TILT_STATIC_DEG))
-                graph.nodes[node_name]["transform"] = base @ head_tilt
+                if anim["rot_axis"] is not None and anim["rot_amp_deg"] != 0.0:
+                    rot = _axis_rotation(
+                        anim["rot_axis"],
+                        math.radians(anim["rot_amp_deg"]),
+                    )
+                    graph.nodes[node_name]["transform"] = (
+                        base_transforms[node_name] @ rot
+                    )
 
 
 def compute_skin_matrices(aang_data):
