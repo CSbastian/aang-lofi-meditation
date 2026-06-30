@@ -22,6 +22,7 @@ def tarea(width, height):
     particles_mod = importlib.import_module("21004082-K.particles3d")
     audio_mod = importlib.import_module("21004082-K.audio")
     skybox_mod = importlib.import_module("21004082-K.skybox")
+    pomodoro_mod = importlib.import_module("21004082-K.pomodoro")
 
     LoFiCamera = camera_mod.LoFiCamera
     build_scene = scene_mod.build_scene
@@ -38,6 +39,7 @@ def tarea(width, height):
     load_lofi_audio = audio_mod.load_lofi_audio
     setup_skybox = skybox_mod.setup_skybox
     render_skybox = skybox_mod.render_skybox
+    Pomodoro = pomodoro_mod.Pomodoro
 
     # ===== WINDOW SETUP =====
     window = pyglet.window.Window(width, height, caption="Aang Meditando — Lo-Fi")
@@ -147,9 +149,17 @@ def tarea(width, height):
         x=12, y=height - 24, color=(255, 240, 180, 255),
     )
     help_label = pyglet.text.Label(
-        "WASD: mover | Mouse: orbitar | Rueda: zoom | R: reset | SPACE: pausa | M: audio | ESC: salir",
+        "WASD: mover | Mouse: orbitar | Rueda: zoom | R: reset | SPACE: pausa | M: audio | P: pomodoro | N: siguiente periodo | ESC: salir",
         font_name="Fira Code", font_size=11,
         x=12, y=18, color=(180, 200, 220, 255),
+    )
+
+    # ===== POMODORO TIMER (esquina superior izquierda) =====
+    pomodoro = Pomodoro(
+        image_path=str(Path(__file__).parent / "assets" / "White_lotus_tile_icon.webp"),
+        center_x=90,
+        center_y=130,
+        diameter=140,
     )
 
     # ===== SETUP LIGHTING HELPER (local) =====
@@ -161,6 +171,7 @@ def tarea(width, height):
         pipeline["camera_position"] = camera_pos.reshape(3, 1, order="F")
         pipeline["ambient_strength"] = lighting_cfg["ambient_strength"]
         pipeline["shininess"] = lighting_cfg["shininess"]
+        pipeline["specular_strength"] = lighting_cfg.get("specular_strength", 1.0)
         pipeline["fog_color"] = lighting_cfg["fog_color"].reshape(4, 1, order="F")
         pipeline["fog_near"] = lighting_cfg["fog_near"]
         pipeline["fog_far"] = lighting_cfg["fog_far"]
@@ -192,6 +203,10 @@ def tarea(width, height):
             if audio_player is not None:
                 audio_mod.toggle_audio(audio_player)
                 state["audio_on"] = audio_player.playing
+        elif symbol == pyglet.window.key.P:
+            pomodoro.toggle_pause()
+        elif symbol == pyglet.window.key.N:
+            pomodoro.skip_period()
         elif symbol == pyglet.window.key.ESCAPE:
             window.close()
 
@@ -277,12 +292,14 @@ def tarea(width, height):
         with ui_overlay():
             title_label.draw()
             help_label.draw()
+            pomodoro.draw()
 
     # ===== UPDATE LOOP =====
     def update(dt):
         if not state["paused"]:
             state["time"] += dt
         camera.update(dt)
+        pomodoro.update(dt)
 
     pyglet.clock.schedule_interval(update, 1.0 / 60.0)
     pyglet.app.run()

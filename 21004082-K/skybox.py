@@ -30,7 +30,7 @@ SKY_COLOR_BOTTOM_R = 0.02       # horizonte un poco más claro
 SKY_COLOR_BOTTOM_G = 0.02
 SKY_COLOR_BOTTOM_B = 0.04
 
-SKY_RADIUS = 15.0               # radio del skydome (debe ser menor que el far plane)
+SKY_RADIUS = 10.0               # radio del skydome (debe ser menor que el far plane)
 
 # Estrellas
 STAR_DENSITY = 100.0            # densidad de celdas (mayor = más estrellas)

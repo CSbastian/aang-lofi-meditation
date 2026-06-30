@@ -90,8 +90,27 @@ HEAD_Z_DEG = 0.0                # head tilt (Z, positive = tilt right)
 HAND_CLOSURE_DEG = 0
 EYE_CLOSURE_DEG = 56.0
 
-# Animaciones procedurales (respiracion, viento, cabeza):
-# ver constantes y helpers justo antes de apply_breathing_and_wind().
+# Animacion de respiracion (amplitudes de traslacion Y en unidades de modelo)
+BREATH_FREQ_HZ = 0.3
+SPINE_LUMBAR_LOW_AMP = 0.0003
+SPINE_LUMBAR_HIGH_AMP = 0.008
+SPINE_DORSAL_LOW_AMP = 0.005
+SPINE_DORSAL_HIGH_AMP = 0.002
+SPINE_NECK_LOW_AMP = 0.008
+
+# Animacion de viento en la capa (amplitudes de rotacion en grados y fases en radianes)
+WIND_FREQ_HZ = 0.3
+CAPE_0_AMP_DEG = 2.0
+CAPE_0_PHASE = 0.0
+CAPE_1_AMP_DEG = 2.5
+CAPE_1_PHASE = 0.8
+CAPE_2_AMP_DEG = 3.0
+CAPE_2_PHASE = 1.6
+CAPE_3_AMP_DEG = 3.5
+CAPE_3_PHASE = 2.4
+
+# Animacion de cabeza (inclinacion estatica en grados)
+HEAD_TILT_AMP_DEG = -5.7
 
 
 def gather_skinned_primitives_data(model):
@@ -272,19 +291,13 @@ def make_joint_anim(joint_index, rot_axis=None, rot_amp_deg=0.0, rot_phase=0.0,
 # trasladarse, comenta las lineas trans_local y descomenta rot_axis='X'.
 # Si el pecho se mueve "hacia los lados" en vez de arriba/abajo,
 # prueba trans_local=(0, 0, ty) (eje Z) o (tx, 0, 0) (eje X).
-BREATH_FREQ_HZ = 0.5  # una respiracion completa cada 2 segundos (lenta, zen)
 
 SPINE_ANIMATIONS = [
-    # joint 8: lumbar bajo (apenas se mueve)
-    make_joint_anim(8,  trans_local=(0.0, 0.003, 0.0)),
-    # joint 9: lumbar alto
-    make_joint_anim(9,  trans_local=(0.0, 0.008, 0.0)),
-    # joint 10: dorsal bajo (el pecho empieza a subir)
-    make_joint_anim(10, trans_local=(0.0, 0.015, 0.0)),
-    # joint 11: dorsal alto (el pecho sube)
-    make_joint_anim(11, trans_local=(0.0, 0.022, 0.0)),
-    # joint 12: cuello bajo (cabeza sube con el pecho)
-    make_joint_anim(12, trans_local=(0.0, 0.028, 0.0)),
+    make_joint_anim(8,  trans_local=(0.0, SPINE_LUMBAR_LOW_AMP, 0.0)),
+    make_joint_anim(9,  trans_local=(0.0, SPINE_LUMBAR_HIGH_AMP, 0.0)),
+    make_joint_anim(10, trans_local=(0.0, SPINE_DORSAL_LOW_AMP, 0.0)),
+    make_joint_anim(11, trans_local=(0.0, SPINE_DORSAL_HIGH_AMP, 0.0)),
+    make_joint_anim(12, trans_local=(0.0, SPINE_NECK_LOW_AMP, 0.0)),
 ]
 
 
@@ -295,21 +308,20 @@ SPINE_ANIMATIONS = [
 # cuerpo, asi que rotacion X = paneo adelante/atras de la capa.
 # Si la capa se mueve "para los lados" en vez de "para adelante/atras",
 # prueba rot_axis='Z'. Si se "enrolla" raro, prueba rot_axis='Y'.
-WIND_FREQ_HZ = 0.3  # viento suave, ciclo de ~3.3s
 
 CAPE_ANIMATIONS = [
-    make_joint_anim(14, rot_axis="X", rot_amp_deg=2.0, rot_phase=0.0),
-    make_joint_anim(15, rot_axis="X", rot_amp_deg=2.5, rot_phase=0.8),
-    make_joint_anim(16, rot_axis="X", rot_amp_deg=3.0, rot_phase=1.6),
-    make_joint_anim(17, rot_axis="X", rot_amp_deg=3.5, rot_phase=2.4),
+    make_joint_anim(14, rot_axis="X", rot_amp_deg=CAPE_0_AMP_DEG, rot_phase=CAPE_0_PHASE),
+    make_joint_anim(15, rot_axis="X", rot_amp_deg=CAPE_1_AMP_DEG, rot_phase=CAPE_1_PHASE),
+    make_joint_anim(16, rot_axis="X", rot_amp_deg=CAPE_2_AMP_DEG, rot_phase=CAPE_2_PHASE),
+    make_joint_anim(17, rot_axis="X", rot_amp_deg=CAPE_3_AMP_DEG, rot_phase=CAPE_3_PHASE),
 ]
 
 
 # --- Cabeza: inclinacion estatica hacia abajo (mirada meditativa) ---
 # Se aplica UNA vez (en el primer frame) como una rotacion CONSTANTE.
-# Para eliminar la inclinacion: pon rot_amp_deg=0.0.
-# Para invertir el sentido: cambia el signo de rot_amp_deg.
-HEAD_ANIMATION = make_joint_anim(20, rot_axis="X", rot_amp_deg=-5.7)
+# Para eliminar la inclinacion: pon HEAD_TILT_AMP_DEG=0.0.
+# Para invertir el sentido: cambia el signo de HEAD_TILT_AMP_DEG.
+HEAD_ANIMATION = make_joint_anim(200, rot_axis="X", rot_amp_deg=HEAD_TILT_AMP_DEG)
 
 
 # Alias de compatibilidad (mantenidos por si algun script externo los usa).

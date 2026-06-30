@@ -11,6 +11,7 @@ uniform vec3 light_color;
 uniform vec3 camera_position;
 uniform float ambient_strength;
 uniform float shininess;
+uniform float specular_strength;
 uniform vec4 fog_color;
 uniform float fog_near;
 uniform float fog_far;
@@ -42,7 +43,7 @@ void main()
     vec3 view_dir = normalize(camera_position - world_position);
     vec3 reflect_dir = reflect(-light_dir, normal);
     float spec = pow(max(dot(reflect_dir, view_dir), 0.0), shininess);
-    vec3 specular = spec * light_color;
+    vec3 specular = spec * light_color * specular_strength;
 
     // Combinar iluminacion Phong
     vec3 phong_color = ambient + diffuse + specular;
