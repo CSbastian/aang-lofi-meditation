@@ -1,57 +1,35 @@
-# Computación Gráfica y Modelamiento para ingenieros e ingenieras (CC3501)
+# Aang meditando con ambiente Lo-Fi
 
-Es necesario el administrador de entornos [`uv`](https://docs.astral.sh/uv/getting-started/installation/). 
+Este proyecto fue desarrollado como parte del ramo **Modelación y Computación Gráfica para Ingenieros** (CC3501) de la Universidad de Chile.
 
-El archivo `caja_de_juguetes.py` sirve como puerta de entrada a los distintos ejemplos del curso. Se ejecuta así:
+Este proyecto es una escena interactiva 3D creada en Python usando `pyglet` y OpenGL. Muestra al personaje Aang meditando en posición de loto, con un ciclo dinámico de día y noche.
 
-`uv run python caja_de_juguetes.py nombre_ejemplo parámetros opciones`
+## Características
 
-Algunos ejemplos no tienen parámetros ni opciones:
+* **Animación y Skinning 3D**: Animación de respiración y viento aplicadas al esqueleto de Aang.
+* **Ciclo de Día y Noche**: Iluminación dinámica y _skybox_ que cambia progresivamente con el tiempo.
+* **Cámara Orbital**: Control interactivo con mouse y teclado.
+* **Temporizador Pomodoro**: Integrado en la interfaz con un ícono temático.
+* **Reproductor Lo-Fi**: Música de fondo ambiental interactiva.
 
-`uv run python caja_de_juguetes hello_world`
+## Requisitos y Ejecución
 
-Otros requieren parámetros:
+El proyecto utiliza `uv` como administrador de entornos.
 
-`uv run python caja_de_juguetes image_texture assets/dice.jpg`
+Para ejecutar la escena, debes correr el siguiente comando:
 
-Y las opciones no son requisito, puesto que cada programa tiene valores por omisión, pero, en caso de haberlas, se especifican así (en este caso, las opciones son `x0 = 10` e `y0 = - 1`):
-
-`uv run python caja_de_juguetes sr_jengibre --x0 10 --y0 -1`
-
-Para ver la lista de ejemplos, puedes ejecutar la caja de juguetes sin incluir un nombre de ejemplo:
-
-`uv run python caja_de_juguetes.py`
-
-Esto debería imprimir en tu pantalla una salida similar a esta:
-
+```bash
+uv run python -m 21004082-K
 ```
-$ uv run python caja_de_juguetes.py
-Usage: caja_de_juguetes.py [OPTIONS] COMMAND [ARGS]...
 
+## Controles
 
-Options:
- --help  Show this message and exit.
-
-
-Commands:
- arcball_example     Visor interactivo de modelos 3D
- boids_abm           Simulador de vuelo de pajaritos usando Agent-Based
-                     Modeling
- cloth_pymunk        Simulación de tela con pymunk
- cloth_verlet        Simulación de tela usando una implementación ingenua de
-                     integración de Verlet
- color_wheel         Ejemplo de espacios de color
- compositions        Ejemplo de composición de transformaciones
- dino_runner         Ejemplo de detección de colisiones en 2D
- falling_boxes       Ejemplo de uso de Pymunk
- hello_opengl        ¡Hola, OpenGL!
- hello_world         ¡Hola, mundo!
- image_pixel         Visor de imágenes
- image_texture       Visor de imágenes (versión textura)
- particles           Partículas simples
- projection_example  Ejemplo de proyección
- raytracing_cpu      Prueba de concepto de RT en la CPU
- solar_system        Sistema solar con grafos de escena
- sr_jengibre         Señor Jengibre
- transformed_bunny   Ejemplo de transformaciones con el conejo de Stanford
-```
+* **A/D o ←/→** : Orbitar
+* **Mouse** : Girar vista
+* **Rueda** : Zoom
+* **R** : Reset de cámara
+* **ESPACIO** : Pausar/Reanudar ciclo temporal
+* **M** : Activar/Desactivar audio Lo-Fi
+* **P** : Pausar/Reanudar Pomodoro
+* **N** : Siguiente ciclo de Pomodoro
+* **ESC** : Salir

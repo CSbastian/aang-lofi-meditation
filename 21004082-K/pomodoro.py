@@ -73,6 +73,9 @@ class Pomodoro:
             anchor_y="center",
             color=COLOR_LABEL,
         )
+        self._label_state_shadows = self._make_shadows(
+            self._label_state, font_size=11, shadow_color=(255, 255, 255, 180),
+        )
 
         # Label central: mm:ss
         self._label_time = pyglet.text.Label(
@@ -85,6 +88,9 @@ class Pomodoro:
             anchor_y="center",
             color=COLOR_TIME,
         )
+        self._label_time_shadows = self._make_shadows(
+            self._label_time, font_size=22, shadow_color=(255, 255, 255, 160),
+        )
 
         # Label inferior: estado (corriendo / pausa)
         self._label_status = pyglet.text.Label(
@@ -96,6 +102,9 @@ class Pomodoro:
             anchor_x="center",
             anchor_y="center",
             color=COLOR_LABEL,
+        )
+        self._label_status_shadows = self._make_shadows(
+            self._label_status, font_size=8, shadow_color=(255, 255, 255, 150),
         )
 
         # Barra de progreso circular (arco) como shape
@@ -111,6 +120,23 @@ class Pomodoro:
 
         # Sprite del loto
         self._sprite = pyglet.sprite.Sprite(self._texture, x=center_x - self.radius, y=center_y - self.radius)
+
+    def _make_shadows(self, base_label, font_size, shadow_color):
+        """Crea 4 copias offset del label para simular un borde blanco."""
+        offsets = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
+        shadows = []
+        for dx, dy in offsets:
+            shadows.append(pyglet.text.Label(
+                base_label.text,
+                font_name="Fira Code",
+                font_size=font_size,
+                x=base_label.x + dx,
+                y=base_label.y + dy,
+                anchor_x="center",
+                anchor_y="center",
+                color=shadow_color,
+            ))
+        return shadows
 
     def _load_texture(self, image_path, diameter):
         """Convierte el WEBP a una textura de pyglet con tamano cuadrado."""
@@ -178,13 +204,19 @@ class Pomodoro:
                 self._switch_to(self.STATE_WORK)
 
     def _refresh_labels(self):
-        """Actualiza el texto de los labels."""
+        """Actualiza el texto de los labels y sus sombras."""
         self._label_state.text = self.state
         self._label_time.text = self._format_time(self.time_left)
         if self.running:
             self._label_status.text = "running"
         else:
             self._label_status.text = "paused (P)"
+        for s in self._label_state_shadows:
+            s.text = self._label_state.text
+        for s in self._label_time_shadows:
+            s.text = self._label_time.text
+        for s in self._label_status_shadows:
+            s.text = self._label_status.text
 
     def _refresh_progress(self):
         """Actualiza el arco de progreso (de 0 a 360 grados)."""
@@ -212,6 +244,14 @@ class Pomodoro:
         with ui_overlay():
             self._sprite.draw()
             self._progress_arc.draw()
+            # Sombras (borde blanco) detras del texto
+            for s in self._label_state_shadows:
+                s.draw()
+            for s in self._label_time_shadows:
+                s.draw()
+            for s in self._label_status_shadows:
+                s.draw()
+            # Texto principal encima
             self._label_state.draw()
             self._label_time.draw()
             self._label_status.draw()

@@ -19,12 +19,11 @@ def tarea(width, height):
     camera_mod = importlib.import_module("21004082-K.camera")
     scene_mod = importlib.import_module("21004082-K.scene_builder")
     aang_mod = importlib.import_module("21004082-K.aang")
-    particles_mod = importlib.import_module("21004082-K.particles3d")
     audio_mod = importlib.import_module("21004082-K.audio")
     skybox_mod = importlib.import_module("21004082-K.skybox")
     pomodoro_mod = importlib.import_module("21004082-K.pomodoro")
 
-    LoFiCamera = camera_mod.LoFiCamera
+    OrbitCamera = camera_mod.OrbitCamera
     build_scene = scene_mod.build_scene
     get_lighting_config = scene_mod.get_lighting_config
     setup_lighting = scene_mod.setup_lighting
@@ -33,12 +32,10 @@ def tarea(width, height):
     apply_breathing_and_wind = aang_mod.apply_breathing_and_wind
     compute_aang_bbox = aang_mod.compute_aang_bbox
     apply_lotus_pose = aang_mod.apply_lotus_pose
-    ParticleSystem3D = particles_mod.ParticleSystem3D
-    setup_particle_renderer = particles_mod.setup_particle_renderer
-    render_particles = particles_mod.render_particles
     load_lofi_audio = audio_mod.load_lofi_audio
     setup_skybox = skybox_mod.setup_skybox
     render_skybox = skybox_mod.render_skybox
+    CYCLE_DURATION = skybox_mod.CYCLE_DURATION
     Pomodoro = pomodoro_mod.Pomodoro
 
     # ===== WINDOW SETUP =====
@@ -48,7 +45,7 @@ def tarea(width, height):
     GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
 
     # ===== FONT =====
-    pyglet.font.add_file(str(Path(__file__).parent.parent / "assets" / "FiraCode" / "FiraCode-Regular.ttf"))
+    pyglet.font.add_file(str(Path(__file__).parent.parent / "assets" / "FiraCode" / "FiraCode-Bold.ttf"))
 
     # ===== SHADERS =====
     shaders_dir = Path(__file__).parent / "shaders"
@@ -60,17 +57,15 @@ def tarea(width, height):
         str(shaders_dir / "skinning_lbs_vertex.glsl"),
         str(shaders_dir / "skinning_phong_fragment.glsl"),
     )
-    particle_pipeline = load_pipeline(
-        str(shaders_dir / "particle_vertex.glsl"),
-        str(shaders_dir / "particle_fragment.glsl"),
-    )
     skybox_pipeline = load_pipeline(
         str(shaders_dir / "skybox_vertex.glsl"),
         str(shaders_dir / "skybox_fragment.glsl"),
     )
 
     # ===== LIGHTING CONFIG =====
-    lighting = get_lighting_config()
+    # lighting_aang: fijo (nocturno) para mantener el look del personaje.
+    # lighting_assets: dinamico, se recalcula cada frame segun el ciclo dia-noche.
+    lighting_aang = get_lighting_config(t01=0.75)
 
     # ===== STATIC SCENE =====
     scene_data = build_scene(phong_pipeline)
@@ -90,17 +85,6 @@ def tarea(width, height):
         aang_data["graph"].nodes[root_name]["transform"] @ \
         tr.translate(scene_mod.AANG_POS_X, scene_mod.AANG_POS_Y, scene_mod.AANG_POS_Z)
 
-    # ===== PARTICLES (disabled for static night scene) =====
-    # aang_center = scene_data["scene_center"]
-    # particle_system = ParticleSystem3D(
-    #     max_particles=scene_mod.PARTICLE_MAX,
-    #     spawn_center=aang_center,
-    #     spawn_radius=scene_mod.PARTICLE_SPAWN_RADIUS,
-    #     canopy_height=scene_mod.PARTICLE_CANOPY_HEIGHT,
-    # )
-    # particle_system.emit(scene_mod.PARTICLE_INITIAL_BURST)
-    # particle_renderer = setup_particle_renderer(particle_pipeline, scene_mod.PARTICLE_MAX)
-
     # ===== SKYBOX =====
     skybox_renderer = setup_skybox(skybox_pipeline)
 
@@ -110,18 +94,11 @@ def tarea(width, height):
     diagonal = float(np.linalg.norm(max_pt - min_pt))
     if diagonal <= 0:
         diagonal = 5.0
-    camera_offset = np.array([
-        diagonal * scene_mod.CAMERA_OFFSET_X_MULT,
-        diagonal * scene_mod.CAMERA_OFFSET_Y_MULT,
-        diagonal * scene_mod.CAMERA_OFFSET_Z_MULT,
-    ], dtype=np.float32)
-    initial_eye = center + camera_offset
 
-    camera = LoFiCamera(
-        width, height,
+    camera = OrbitCamera(
         target=center.astype(np.float64),
-        initial_eye=initial_eye.astype(np.float64),
-        scene_scale=diagonal,
+        distance=diagonal * scene_mod.CAMERA_DISTANCE_MULT,
+        height=diagonal * scene_mod.CAMERA_HEIGHT_MULT,
     )
     projection = tr.perspective(
         scene_mod.CAMERA_FOV_DEG, width / height,
@@ -129,9 +106,8 @@ def tarea(width, height):
     )
 
     # ===== AUDIO (disabled for static scene) =====
-    # audio_path = str(Path(__file__).parent / "assets" / "audio" / "lofi.mp3")
-    # audio_player = load_lofi_audio(audio_path)
-    audio_player = None
+    audio_path = str(Path(__file__).parent / "assets" / "audio" / "lofi.mp3")
+    audio_player = load_lofi_audio(audio_path)
 
     # ===== SKIN MATRICES BUFFER =====
     n_joints = aang_data["n_joints"]
@@ -143,16 +119,35 @@ def tarea(width, height):
     state = {"time": 0.0, "paused": False, "audio_on": audio_player is not None}
 
     # ===== HUD LABELS =====
-    title_label = pyglet.text.Label(
-        "Aang Meditando — Lo-Fi",
-        font_name="Fira Code", font_size=16,
-        x=12, y=height - 24, color=(255, 240, 180, 255),
-    )
-    help_label = pyglet.text.Label(
-        "WASD: mover | Mouse: orbitar | Rueda: zoom | R: reset | SPACE: pausa | M: audio | P: pomodoro | N: siguiente periodo | ESC: salir",
-        font_name="Fira Code", font_size=11,
-        x=12, y=18, color=(180, 200, 220, 255),
-    )
+    help_lines = [
+        "A/D o \u2190/\u2192  orbitar",
+        "Mouse         girar",
+        "Rueda         zoom",
+        "R             reset",
+        "ESPACIO       pausa",
+        "M             audio",
+        "P             pomodoro",
+        "N             siguiente",
+        "ESC           salir",
+    ]
+    help_labels = []
+    help_shadows = []
+    for i, line in enumerate(help_lines):
+        shadow_group = []
+        for dx, dy in [(-1, -1), (-1, 1), (1, -1), (1, 1)]:
+            shadow_group.append(pyglet.text.Label(
+                line,
+                font_name="Fira Code", font_size=10,
+                x=width - 180 + dx, y=18 + (len(help_lines) - 1 - i) * 14 + dy,
+                color=(255, 255, 255, 180),
+            ))
+        help_shadows.append(shadow_group)
+        help_labels.append(pyglet.text.Label(
+            line,
+            font_name="Fira Code", font_size=10,
+            x=width - 180, y=18 + (len(help_lines) - 1 - i) * 14,
+            color=(0, 0, 0, 255),
+        ))
 
     # ===== POMODORO TIMER (esquina superior izquierda) =====
     pomodoro = Pomodoro(
@@ -180,10 +175,6 @@ def tarea(width, height):
 
     # ===== EVENT HANDLERS =====
     @window.event
-    def on_mouse_press(x, y, button, modifiers):
-        camera.on_mouse_press(x, y, button, modifiers)
-
-    @window.event
     def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
         camera.on_mouse_drag(x, y, dx, dy, buttons, modifiers)
 
@@ -193,7 +184,7 @@ def tarea(width, height):
 
     @window.event
     def on_key_press(symbol, modifiers):
-        camera.on_key_press_WASD(symbol)
+        camera.on_key_press(symbol)
         # Global keys
         if symbol == pyglet.window.key.R:
             camera.reset()
@@ -212,21 +203,26 @@ def tarea(width, height):
 
     @window.event
     def on_key_release(symbol, modifiers):
-        camera.on_key_release_WASD(symbol)
+        camera.on_key_release(symbol)
 
     @window.event
     def on_draw():
         window.clear()
+        # Fraccion del ciclo dia-noche (0=amanecer, 0.25=dia, 0.5=atardecer, 0.75=noche).
+        # Misma formula que usa el shader del skybox internamente.
+        t01 = (state["time"] % CYCLE_DURATION) / CYCLE_DURATION
+        lighting_assets = get_lighting_config(t01)
+
         # Skybox nocturno: se renderiza primero con depth test off
         render_skybox(skybox_renderer, camera.get_view_matrix(), projection, state["time"])
 
         view = camera.get_view_matrix()
-        # Extract camera world position from view matrix inverse (pose)
-        camera_pos = camera.arcball.pose[:3, 3]
+        camera_pos = camera.get_position()
 
         # ---- Draw static objects (Phong pipeline) ----
+        # Usa lighting_assets (dinamico segun el ciclo).
         phong_pipeline.use()
-        set_lighting_here(phong_pipeline, lighting, camera_pos, view, projection)
+        set_lighting_here(phong_pipeline, lighting_assets, camera_pos, view, projection)
 
         # Sort: opaque first, transparent last
         opaque = [p for p in scene_data["primitives"] if not p.get("is_transparent", False)]
@@ -263,7 +259,9 @@ def tarea(width, height):
         skinning_pipeline["projection"] = projection.reshape(16, 1, order="F")
         skinning_pipeline["transform"] = tr.identity().reshape(16, 1, order="F")
         skinning_pipeline["skin_matrices"] = skin_matrices_buffer
-        setup_lighting(skinning_pipeline, lighting, camera_pos)
+        setup_lighting(skinning_pipeline, lighting_aang, camera_pos)
+        # Aang usa su propio look cartoon (no el night light_color de lighting_aang)
+        skinning_pipeline["light_color"] = np.array([1.0, 0.95, 0.85], dtype=np.float32).reshape(3, 1, order="F")
         skinning_pipeline["shininess"] = 2.0
         skinning_pipeline["ambient_strength"] = 0.65
         skinning_pipeline["specular_strength"] = 0.08
@@ -283,15 +281,12 @@ def tarea(width, height):
                 GL.glBindTexture(GL.GL_TEXTURE_2D, tex_id)
             prim["vertex_list"].draw(GL.GL_TRIANGLES)
 
-        # ---- Draw particles (disabled) ----
-        # if not state["paused"]:
-        #     particle_system.update(0.016)
-        # render_particles(particle_renderer, particle_system, view, projection, point_size_scale=scene_mod.PARTICLE_POINT_SIZE_SCALE)
-
         # ---- HUD ----
         with ui_overlay():
-            title_label.draw()
-            help_label.draw()
+            for shadow_group, lbl in zip(help_shadows, help_labels):
+                for s in shadow_group:
+                    s.draw()
+                lbl.draw()
             pomodoro.draw()
 
     # ===== UPDATE LOOP =====

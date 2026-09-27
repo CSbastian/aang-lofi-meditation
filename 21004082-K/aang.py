@@ -86,8 +86,8 @@ HEAD_X_DEG = 0.0                # head nod (X, positive = look up)
 HEAD_Y_DEG = 0.0                # head turn (Y, positive = look right)
 HEAD_Z_DEG = 0.0                # head tilt (Z, positive = tilt right)
 
-# Hand closure (0 = open, 90 = fist)
-HAND_CLOSURE_DEG = 0
+# Hand and eye closure (0 = open, 90 = fist)
+HAND_CLOSURE_DEG = 90
 EYE_CLOSURE_DEG = 56.0
 
 # Animacion de respiracion (amplitudes de traslacion Y en unidades de modelo)
@@ -323,12 +323,6 @@ CAPE_ANIMATIONS = [
 # Para invertir el sentido: cambia el signo de HEAD_TILT_AMP_DEG.
 HEAD_ANIMATION = make_joint_anim(200, rot_axis="X", rot_amp_deg=HEAD_TILT_AMP_DEG)
 
-
-# Alias de compatibilidad (mantenidos por si algun script externo los usa).
-BREATH_AMPLITUDE_DEG = 1.15
-WIND_AMPLITUDE_DEG = 4.6
-WIND_PHASE_OFFSET = 0.8
-HEAD_TILT_STATIC_DEG = -5.7
 
 
 def _axis_rotation(axis, angle):

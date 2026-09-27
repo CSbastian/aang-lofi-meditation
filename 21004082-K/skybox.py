@@ -11,24 +11,12 @@ Parametros editables abajo.
 import math
 
 import numpy as np
-import pyglet
 import pyglet.gl as GL
-from pathlib import Path
-
-from grafica.utils import load_pipeline
 
 
 # ---------------------------------------------------------------------------
 # Skydome parameters
 # ---------------------------------------------------------------------------
-
-# Colors del cielo (gradiente vertical)
-SKY_COLOR_TOP_R = 0.005         # casi negro (cénit)
-SKY_COLOR_TOP_G = 0.005
-SKY_COLOR_TOP_B = 0.02          # leve tinte azul
-SKY_COLOR_BOTTOM_R = 0.02       # horizonte un poco más claro
-SKY_COLOR_BOTTOM_G = 0.02
-SKY_COLOR_BOTTOM_B = 0.04
 
 SKY_RADIUS = 10.0               # radio del skydome (debe ser menor que el far plane)
 

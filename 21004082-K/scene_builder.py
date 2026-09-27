@@ -24,26 +24,80 @@ ASSETS_DIR = Path(__file__).parent / "assets"
 # ---------------------------------------------------------------------------
 # Lighting / fog configuration
 # ---------------------------------------------------------------------------
+# Lighting profiles por momento del dia (misma curva que el skybox)
+# ---------------------------------------------------------------------------
+# t01 = 0.0 amanecer (dawn) -> 0.25 dia (day) -> 0.5 atardecer (dusk)
+#      -> 0.75 noche (night) -> 1.0 vuelve a amanecer
+# Los colores light_color/fog_color armonizan con los horizon colors del skybox.
 
-def get_lighting_config():
-    """Return a dict with all lighting, fog, and background parameters.
-
-    Ajustado para escena nocturna Lo-Fi: ambiente bajo, especular reducida
-    al 10% y luz lunar calida. Valores basados en tablas de Phong (Jade=12.8,
-    Black Plastic=32, Obsidian=38.4) y la regla k_a + k_d + k_s ~ 1.
-    """
-    return {
-        "light_direction": np.array([0.4, 0.7, 0.5], dtype=np.float32),
-        "light_color": np.array([0.95, 0.88, 0.70], dtype=np.float32),
+LIGHTING_PROFILES = {
+    "dawn": {
+        "light_color":      np.array([0.95, 0.75, 0.55], dtype=np.float32),  # calido rosado
+        "ambient_strength": 0.28,
+        "shininess":        18.0,
+        "specular_strength": 0.15,
+        "fog_color":        np.array([0.55, 0.45, 0.50, 1.0], dtype=np.float32),
+    },
+    "day": {
+        "light_color":      np.array([1.00, 0.95, 0.85], dtype=np.float32),  # sol calido
+        "ambient_strength": 0.45,
+        "shininess":        32.0,
+        "specular_strength": 0.25,
+        "fog_color":        np.array([0.78, 0.86, 0.98, 1.0], dtype=np.float32),
+    },
+    "dusk": {
+        "light_color":      np.array([0.95, 0.55, 0.35], dtype=np.float32),  # naranja quemado
+        "ambient_strength": 0.20,
+        "shininess":        12.0,
+        "specular_strength": 0.08,
+        "fog_color":        np.array([0.50, 0.35, 0.45, 1.0], dtype=np.float32),
+    },
+    "night": {
+        "light_color":      np.array([0.45, 0.50, 0.70], dtype=np.float32),  # luz lunar azulada
         "ambient_strength": 0.18,
-        "shininess": 16.0,
+        "shininess":        16.0,
         "specular_strength": 0.10,
-        "fog_color": np.array([0.15, 0.18, 0.30, 1.0], dtype=np.float32),
-        "fog_near": 10.0,
-        "fog_far": 30.0,
-        "background_bottom": (0.15, 0.35, 0.65),
-        "background_top": (0.35, 0.55, 0.85),
-    }
+        "fog_color":        np.array([0.08, 0.10, 0.18, 1.0], dtype=np.float32),
+    },
+}
+
+
+def _lerp_lighting(a, b, t):
+    """Interpola dos configs de iluminacion. t en [0, 1]."""
+    out = {}
+    for k in a:
+        if isinstance(a[k], np.ndarray):
+            out[k] = (a[k] * (1.0 - t) + b[k] * t).astype(np.float32)
+        else:
+            out[k] = a[k] * (1.0 - t) + b[k] * t
+    return out
+
+
+def get_lighting_config(t01=0.75):
+    """Devuelve la config de iluminacion interpolada segun el momento del dia.
+
+    t01: fraccion del ciclo dia-noche en [0, 1]. Misma segmentacion que el
+        skybox: 0=amanecer, 0.25=dia, 0.5=atardecer, 0.75=noche.
+        Default 0.75 = noche (compatibilidad con uso estatico previo).
+    """
+    t01 = t01 % 1.0
+    if t01 < 0.25:
+        k = t01 / 0.25
+        cfg = _lerp_lighting(LIGHTING_PROFILES["dawn"], LIGHTING_PROFILES["day"], k)
+    elif t01 < 0.5:
+        k = (t01 - 0.25) / 0.25
+        cfg = _lerp_lighting(LIGHTING_PROFILES["day"], LIGHTING_PROFILES["dusk"], k)
+    elif t01 < 0.75:
+        k = (t01 - 0.5) / 0.25
+        cfg = _lerp_lighting(LIGHTING_PROFILES["dusk"], LIGHTING_PROFILES["night"], k)
+    else:
+        k = (t01 - 0.75) / 0.25
+        cfg = _lerp_lighting(LIGHTING_PROFILES["night"], LIGHTING_PROFILES["dawn"], k)
+    # Parametros constantes (no dependen del momento)
+    cfg["light_direction"] = np.array([0.4, 0.7, 0.5], dtype=np.float32)
+    cfg["fog_near"] = 10.0
+    cfg["fog_far"] = 30.0
+    return cfg
 
 
 def setup_lighting(pipeline, config, camera_position):
@@ -407,13 +461,12 @@ def _instantiate(primitives_template, transform, base_color_override=None):
 
 
 # ---------------------------------------------------------------------------
-# Scene parameters — easy to edit
+# Scene parameters 
 # ---------------------------------------------------------------------------
 
 # Floor
 FLOOR_RADIUS = 30           # radio del piso circular (unidades de mundo)
 FLOOR_TILE_REPEAT = 6           # how many times the floor texture tiles
-FLOOR_BASE_SCALE = 0.1         # base scale before multiplying by FLOOR_TILE_REPEAT
 
 # Forest — centro del anillo (donde esta Aang)
 FOREST_CENTER_X = 0.0
@@ -421,12 +474,12 @@ FOREST_CENTER_Z = 0.0
 
 # --- Troncos (trunks) ---
 TRUNK_ENABLED = True
-TRUNK_COUNT = 8
+TRUNK_COUNT = 6
 TRUNK_INNER_RADIUS = 5.0
 TRUNK_OUTER_RADIUS = 20.0
 TRUNK_SCALE_MIN = 0.02
 TRUNK_SCALE_MAX = 0.06
-TRUNK_SEED = 7
+TRUNK_SEED = 8
 TRUNK_MESH_INDICES = [0, 37]
 
 # --- Arboles tipo A (tree_a) ---
@@ -434,8 +487,8 @@ TREEA_ENABLED = True
 TREEA_COUNT = 20
 TREEA_INNER_RADIUS = 5.0
 TREEA_OUTER_RADIUS = 20.0
-TREEA_SCALE_MIN = 0.02
-TREEA_SCALE_MAX = 0.06
+TREEA_SCALE_MIN = 0.04
+TREEA_SCALE_MAX = 0.08
 TREEA_SEED = 13
 TREEA_MESH_INDICES = [4, 6, 7, 8, 9, 10, 32]
 
@@ -451,25 +504,25 @@ TREEB_MESH_INDICES = [3, 11, 12, 13, 14, 33]
 
 # --- Rocas con musgo (mossy_rock) ---
 MOSSY_ENABLED = True
-MOSSY_COUNT = 30
+MOSSY_COUNT = 15
 MOSSY_INNER_RADIUS = 2.0
 MOSSY_OUTER_RADIUS = 20.0
-MOSSY_SCALE_MIN = 0.005
+MOSSY_SCALE_MIN = 0.0045
 MOSSY_SCALE_MAX = 0.007
 MOSSY_SEED = 99
 MOSSY_MESH_INDICES = [0]
 MOSSY_ASSET = "mossy_rock"
 
-# Bushes (arbustos del asset arbusto/scene.gltf, 1 sola mesh)
+# Bushes (
 BUSH_ENABLED = True
-BUSH_COUNT = 30                  # cuantos arbustos colocar
-BUSH_INNER_RADIUS = 10.0          # radio minimo al centro (mas cerca de Aang que los arboles)
-BUSH_OUTER_RADIUS = 15.0         # radio maximo al centro (solapa con el inicio del rango de los arboles)
-BUSH_SCALE_MIN = 0.005           # escala minima (arbustos son mas pequenos que los arboles)
-BUSH_SCALE_MAX = 0.012           # escala maxima
-BUSH_RING_BIAS = 0.0             # 0=anillo uniforme, 1=tendencia al borde externo
-BUSH_Y_JITTER = 0.0              # pequeno jitter vertical (0 = todos apoyados en el suelo)
-BUSH_SEED = 23                   # semilla del RNG (reproducible)
+BUSH_COUNT = 80                
+BUSH_INNER_RADIUS = 5.0          
+BUSH_OUTER_RADIUS = 15.0        
+BUSH_SCALE_MIN = 0.005
+BUSH_SCALE_MAX = 0.012
+BUSH_RING_BIAS = 0.0
+BUSH_Y_JITTER = 0.0
+BUSH_SEED = 23      
 
 # Rock under Aang
 ROCK_ENABLED = True
@@ -481,25 +534,16 @@ ROCK_ROTATION_X_DEG = 90
 ROCK_ROTATION_Y_DEG = 0
 ROCK_ROTATION_Z_DEG = 0
 
-# Particles (falling leaves)
-PARTICLE_ENABLED = True
-PARTICLE_MAX = 150
-PARTICLE_SPAWN_RADIUS = 6.0
-PARTICLE_CANOPY_HEIGHT = 5.0
-PARTICLE_POINT_SIZE_SCALE = 20.0
-PARTICLE_INITIAL_BURST = 80
-
 # Camera
 CAMERA_FOV_DEG = 45.0
-CAMERA_OFFSET_X_MULT = 0.7       # initial eye offset multiplier
-CAMERA_OFFSET_Y_MULT = 0.3
-CAMERA_OFFSET_Z_MULT = 0.8
+CAMERA_DISTANCE_MULT = 3     # distancia de la camara al target (x diagonal del bbox)
+CAMERA_HEIGHT_MULT = 0.55       # altura de la camara sobre el target (x diagonal del bbox)
 
 # Aang position & rotation
-AANG_POS_X = 0.0
-AANG_POS_Y = 0.0
-AANG_POS_Z = 0.8
-AANG_FACING_DEG = 0              # rotation around vertical axis
+AANG_POS_X = -0.35
+AANG_POS_Y = -0.17
+AANG_POS_Z = 0.86
+AANG_FACING_DEG = 15   # rotation around vertical axis
 
 
 
@@ -515,8 +559,6 @@ def build_scene(phong_pipeline):
 
         {
             "primitives": [ {vertex_list, transform, texture_id, is_transparent}, ... ],
-            "scene_scale": float,
-            "scene_center": np.array([x, y, z]),
         }
 
     Aang is NOT loaded here (that is Task 8's responsibility).
@@ -621,13 +663,8 @@ def build_scene(phong_pipeline):
     # ------------------------------------------------------------------
     # Result
     # ------------------------------------------------------------------
-    scene_scale = 1.0
-    scene_center = np.array([AANG_POS_X, AANG_POS_Y, AANG_POS_Z], dtype=np.float32)
-
     print(f"[scene_builder] total primitive instances: {len(all_primitives)}")
 
     return {
         "primitives": all_primitives,
-        "scene_scale": scene_scale,
-        "scene_center": scene_center,
     }

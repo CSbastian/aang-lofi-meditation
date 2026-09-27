@@ -48,18 +48,3 @@ def toggle_audio(player):
         player.pause()
     else:
         player.play()
-
-
-def set_audio_volume(player, volume):
-    """
-    Set the audio volume.
-
-    Parameters
-    ----------
-    player : pyglet.media.Player or None
-        The audio player. Safe to pass None.
-    volume : float
-        Volume level between 0.0 (mute) and 1.0 (full).
-    """
-    if player is not None:
-        player.volume = max(0.0, min(1.0, volume))

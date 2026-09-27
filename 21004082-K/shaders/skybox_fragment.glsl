@@ -12,8 +12,6 @@ uniform float u_time;
 uniform float u_star_density;
 uniform float u_star_brightness;
 uniform float u_cycle_duration;
-uniform vec3  u_sky_color_top;
-uniform vec3  u_sky_color_bottom;
 
 out vec4 out_color;
 
